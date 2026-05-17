@@ -3,45 +3,53 @@ import { getCategories } from '../api/categoryApi';
 
 const empty = {
   name: '', sku: '', category: '', unit: 'bottle',
-  bottleSizeMl: '', costPrice: '', sellingPrice: '',
+  size: '', bottleSizeMl: '', costPrice: '', sellingPrice: '',
+  caseQty: '', casePrice: '',
   stockQty: '', lowStockThreshold: 5, expiryDate: ''
 };
 
 export default function ProductForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState(initial ? {
     ...initial,
-    category: initial.category?._id || initial.category || ''
+    category: initial.category?._id || initial.category || '',
+    caseQty: initial.caseQty ?? '',
+    casePrice: initial.casePrice ?? '',
+    size: initial.size ?? '',
   } : empty);
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await getCategories();
-        setCategories(res.data);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchCategories();
+    getCategories().then(res => setCategories(res.data)).catch(console.error);
   }, []);
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const submit = (e) => {
     e.preventDefault();
-    onSave(form);
+    const data = {
+      ...form,
+      caseQty:   form.caseQty   ? Number(form.caseQty)   : null,
+      casePrice: form.casePrice ? Number(form.casePrice) : null,
+    };
+    onSave(data);
   };
 
-  const field = (label, name, type = 'text') => (
+  const inputStyle = {
+    width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #ddd',
+    borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box'
+  };
+
+  const field = (label, name, type = 'text', placeholder = '') => (
     <div style={{ marginBottom: '1rem' }}>
       <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>{label}</label>
       <input
         type={type} name={name} value={form[name] ?? ''} onChange={handle}
-        style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+        placeholder={placeholder} style={inputStyle}
       />
     </div>
   );
+
+  const hasCaseFields = !!form.caseQty;
 
   return (
     <div style={{
@@ -50,29 +58,21 @@ export default function ProductForm({ initial, onSave, onClose }) {
     }}>
       <div style={{
         background: '#fff', borderRadius: '10px', padding: '2rem',
-        width: '480px', maxHeight: '85vh', overflowY: 'auto'
+        width: '500px', maxHeight: '90vh', overflowY: 'auto'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <h2 style={{ margin: 0, fontSize: '18px' }}>{initial ? 'Edit Product' : 'Add Product'}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#888' }}>×</button>
         </div>
+
         <form onSubmit={submit}>
           {field('Product name *', 'name')}
           {field('SKU *', 'sku')}
 
-          {/* Category dropdown */}
+          {/* Category */}
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>Category</label>
-            <select
-              name="category"
-              value={form.category}
-              onChange={handle}
-              style={{
-                width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #ddd',
-                borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box',
-                background: '#fff', color: '#333'
-              }}
-            >
+            <select name="category" value={form.category} onChange={handle} style={{ ...inputStyle, background: '#fff' }}>
               <option value="">— Select category —</option>
               {categories.map(cat => (
                 <option key={cat._id} value={cat._id}>{cat.name}</option>
@@ -80,12 +80,84 @@ export default function ProductForm({ initial, onSave, onClose }) {
             </select>
           </div>
 
-          {field('Unit (bottle / can / pack)', 'unit')}
-          {field('Bottle size (ml)', 'bottleSizeMl', 'number')}
-          {field('Cost price (Rs.) *', 'costPrice', 'number')}
-          {field('Selling price (Rs.) *', 'sellingPrice', 'number')}
-          {field('Stock quantity', 'stockQty', 'number')}
-          {field('Low stock threshold', 'lowStockThreshold', 'number')}
+          {/* Unit & Size */}
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ flex: 1, marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>Unit</label>
+              <select name="unit" value={form.unit} onChange={handle} style={{ ...inputStyle, background: '#fff' }}>
+                <option value="bottle">Bottle</option>
+                <option value="can">Can</option>
+                <option value="pack">Pack</option>
+                <option value="stick">Stick</option>
+                <option value="packet">Packet</option>
+                <option value="piece">Piece</option>
+              </select>
+            </div>
+            <div style={{ flex: 1, marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>Size (e.g. 330ml, 500ml)</label>
+              <input name="size" value={form.size} onChange={handle} placeholder="optional" style={inputStyle} />
+            </div>
+          </div>
+
+          {/* Prices */}
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ flex: 1, marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>Cost price (Rs.) *</label>
+              <input type="number" name="costPrice" value={form.costPrice} onChange={handle} style={inputStyle} />
+            </div>
+            <div style={{ flex: 1, marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>Selling price (Rs.) *</label>
+              <input type="number" name="sellingPrice" value={form.sellingPrice} onChange={handle} style={inputStyle} />
+            </div>
+          </div>
+
+          {/* Case / Pack section */}
+          <div style={{
+            background: '#f9f9f9', border: '1px solid #eee', borderRadius: '8px',
+            padding: '1rem', marginBottom: '1rem'
+          }}>
+            <div style={{ fontSize: '13px', fontWeight: 500, color: '#555', marginBottom: '0.75rem' }}>
+              Case / Pack selling <span style={{ fontWeight: 400, color: '#aaa' }}>(optional — enables bulk selling at POS)</span>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>
+                  Units per case/pack
+                </label>
+                <input
+                  type="number" name="caseQty" value={form.caseQty} onChange={handle}
+                  placeholder="e.g. 24 for beer case, 20 for cig pack"
+                  style={inputStyle}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>
+                  Case/pack price (Rs.)
+                </label>
+                <input
+                  type="number" name="casePrice" value={form.casePrice} onChange={handle}
+                  placeholder="selling price for whole case"
+                  style={{ ...inputStyle, borderColor: hasCaseFields && !form.casePrice ? '#e94560' : '#ddd' }}
+                />
+                {hasCaseFields && !form.casePrice && (
+                  <div style={{ fontSize: '11px', color: '#e94560', marginTop: '3px' }}>Required if case qty is set</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Stock */}
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ flex: 1, marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>Stock quantity</label>
+              <input type="number" name="stockQty" value={form.stockQty} onChange={handle} style={inputStyle} />
+            </div>
+            <div style={{ flex: 1, marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>Low stock threshold</label>
+              <input type="number" name="lowStockThreshold" value={form.lowStockThreshold} onChange={handle} style={inputStyle} />
+            </div>
+          </div>
+
           {field('Expiry date', 'expiryDate', 'date')}
 
           <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>

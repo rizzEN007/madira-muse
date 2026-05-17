@@ -45,7 +45,7 @@ router.post('/', async (req, res) => {
       });
 
       await Product.findByIdAndUpdate(item.productId, {
-        $inc: { stockQty: -item.quantity }
+         $inc: { stockQty: -(item.qtyDeduct || item.quantity) }
       });
     }
 

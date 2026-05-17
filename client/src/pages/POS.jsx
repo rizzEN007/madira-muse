@@ -4,6 +4,72 @@ import { completeSale } from '../api/salesApi';
 import { getCustomers } from '../api/customerApi';
 import Receipt from '../components/Receipt';
 
+// Popup to choose Single vs Case/Pack
+function VariantPicker({ product, onSelect, onClose }) {
+  const unitLabel     = product.unit || 'unit';
+  const caseLabel     = ['stick', 'pack'].includes(product.unit) ? 'Pack' : 'Case';
+  const singleLabel   = product.unit.charAt(0).toUpperCase() + product.unit.slice(1);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: '12px', padding: '2rem',
+        width: '320px', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+      }}>
+        <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '0.4rem' }}>{product.name}</div>
+        {product.size && (
+          <div style={{ fontSize: '12px', color: '#888', marginBottom: '1.25rem' }}>{product.size}</div>
+        )}
+        <div style={{ fontSize: '13px', color: '#888', marginBottom: '1.25rem' }}>How are you selling this?</div>
+
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {/* Single */}
+          <button
+            onClick={() => onSelect('single')}
+            style={{
+              flex: 1, padding: '1rem', borderRadius: '8px', cursor: 'pointer',
+              border: '2px solid #1a1a2e', background: '#fff',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
+            }}
+          >
+            <span style={{ fontSize: '22px' }}>🍺</span>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>{singleLabel}</span>
+            <span style={{ fontSize: '13px', color: '#e94560', fontWeight: 500 }}>Rs. {product.sellingPrice}</span>
+          </button>
+
+          {/* Case/Pack */}
+          <button
+            onClick={() => onSelect('case')}
+            style={{
+              flex: 1, padding: '1rem', borderRadius: '8px', cursor: 'pointer',
+              border: '2px solid #e94560', background: '#fff5f7',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
+            }}
+          >
+            <span style={{ fontSize: '22px' }}>📦</span>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>{caseLabel}</span>
+            <span style={{ fontSize: '12px', color: '#888' }}>{product.caseQty} {unitLabel}s</span>
+            <span style={{ fontSize: '13px', color: '#e94560', fontWeight: 500 }}>Rs. {product.casePrice}</span>
+          </button>
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            marginTop: '1rem', background: 'none', border: 'none',
+            color: '#aaa', cursor: 'pointer', fontSize: '13px'
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function POS() {
   const [products, setProducts]       = useState([]);
   const [customers, setCustomers]     = useState([]);
@@ -16,6 +82,7 @@ export default function POS() {
   const [lastInvoice, setLastInvoice] = useState(null);
   const [loading, setLoading]         = useState(false);
   const [receipt, setReceipt]         = useState(null);
+  const [variantFor, setVariantFor]   = useState(null); // product awaiting variant pick
 
   useEffect(() => {
     getProducts().then(res => setProducts(res.data));
@@ -27,39 +94,68 @@ export default function POS() {
     p.sku.toLowerCase().includes(search.toLowerCase())
   );
 
-  const addToCart = (product) => {
-    const exists = cart.find(c => c.productId === product._id);
+  const addToCart = (product, variant = 'single') => {
+    const isCase     = variant === 'case';
+    const unitPrice  = isCase ? product.casePrice  : product.sellingPrice;
+    const qtyDeduct  = isCase ? product.caseQty    : 1;
+    const variantLabel = isCase
+      ? (['stick','pack'].includes(product.unit) ? 'Pack' : 'Case')
+      : (product.unit.charAt(0).toUpperCase() + product.unit.slice(1));
+
+    // Cart key includes variant so single and case can coexist
+    const cartKey = `${product._id}_${variant}`;
+    const exists  = cart.find(c => c.cartKey === cartKey);
+
     if (exists) {
-      setCart(cart.map(c => c.productId === product._id
-        ? { ...c, quantity: c.quantity + 1, lineTotal: (c.quantity + 1) * c.unitPrice }
+      setCart(cart.map(c => c.cartKey === cartKey
+        ? { ...c, quantity: c.quantity + 1, lineTotal: (c.quantity + 1) * unitPrice }
         : c
       ));
     } else {
       setCart([...cart, {
-        productId: product._id,
-        productName: product.name,
-        unitPrice: product.sellingPrice,
-        quantity: 1,
-        lineTotal: product.sellingPrice,
+        cartKey,
+        productId:    product._id,
+        productName:  product.size
+          ? `${product.name} ${product.size} (${variantLabel})`
+          : `${product.name} (${variantLabel})`,
+        unitPrice,
+        qtyDeduct,
+        variant,
+        quantity:  1,
+        lineTotal: unitPrice,
       }]);
     }
     setSearch('');
   };
 
-  const updateQty = (productId, qty) => {
-    if (qty < 1) return removeFromCart(productId);
-    setCart(cart.map(c => c.productId === productId
+  const handleProductClick = (product) => {
+    // If product has case/pack option, show picker
+    if (product.caseQty && product.casePrice) {
+      setVariantFor(product);
+    } else {
+      addToCart(product, 'single');
+    }
+  };
+
+  const handleVariantSelect = (variant) => {
+    addToCart(variantFor, variant);
+    setVariantFor(null);
+  };
+
+  const updateQty = (cartKey, qty) => {
+    if (qty < 1) return removeFromCart(cartKey);
+    setCart(cart.map(c => c.cartKey === cartKey
       ? { ...c, quantity: qty, lineTotal: qty * c.unitPrice }
       : c
     ));
   };
 
-  const removeFromCart = (productId) => {
-    setCart(cart.filter(c => c.productId !== productId));
+  const removeFromCart = (cartKey) => {
+    setCart(cart.filter(c => c.cartKey !== cartKey));
   };
 
   const subtotal = cart.reduce((sum, c) => sum + c.lineTotal, 0);
-  const total = subtotal - Number(discount);
+  const total    = subtotal - Number(discount);
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) return alert('Cart is empty');
@@ -67,18 +163,29 @@ export default function POS() {
     if (isCredit && !customerId) return alert('Please select a customer for credit sale');
     setLoading(true);
     try {
+      // Build items — qtyDeduct tells backend how many stock units to deduct
+      const items = cart.map(c => ({
+        productId:   c.productId,
+        productName: c.productName,
+        quantity:    c.quantity,
+        qtyDeduct:   c.qtyDeduct * c.quantity, // total stock units to deduct
+        unitPrice:   c.unitPrice,
+        lineTotal:   c.lineTotal,
+      }));
+
       const res = await completeSale({
-        items: cart,
-        discount: Number(discount),
+        items,
+        discount:      Number(discount),
         paymentMethod: payment,
         isCredit,
-        customerId: isCredit ? customerId : null,
+        customerId:    isCredit ? customerId : null,
       });
+
       setReceipt({
-        invoice: res.data.invoiceNo,
-        items: [...cart],
+        invoice:       res.data.invoiceNo,
+        items:         [...cart],
         subtotal,
-        discount: Number(discount),
+        discount:      Number(discount),
         total,
         paymentMethod: isCredit ? 'credit' : payment,
       });
@@ -98,6 +205,15 @@ export default function POS() {
   return (
     <div style={{ display: 'flex', gap: '1.5rem', height: '100%' }}>
 
+      {/* Variant picker popup */}
+      {variantFor && (
+        <VariantPicker
+          product={variantFor}
+          onSelect={handleVariantSelect}
+          onClose={() => setVariantFor(null)}
+        />
+      )}
+
       {/* Left — product search */}
       <div style={{ flex: 1 }}>
         <h1 style={{ fontSize: '22px', marginTop: 0 }}>Point of Sale</h1>
@@ -114,16 +230,33 @@ export default function POS() {
         />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '12px' }}>
           {(search ? filtered : products).map(p => (
-            <div key={p._id} onClick={() => addToCart(p)} style={{
+            <div key={p._id} onClick={() => handleProductClick(p)} style={{
               background: '#fff', border: '1px solid #eee', borderRadius: '8px',
-              padding: '1rem', cursor: 'pointer', transition: 'border-color 0.2s'
+              padding: '1rem', cursor: 'pointer', transition: 'border-color 0.2s',
+              position: 'relative'
             }}
               onMouseOver={e => e.currentTarget.style.borderColor = '#e94560'}
               onMouseOut={e => e.currentTarget.style.borderColor = '#eee'}
             >
-              <div style={{ fontSize: '13px', fontWeight: 500, marginBottom: '4px' }}>{p.name}</div>
+              {/* Case badge */}
+              {p.caseQty && (
+                <span style={{
+                  position: 'absolute', top: '8px', right: '8px',
+                  background: '#1a1a2e', color: '#fff',
+                  fontSize: '10px', padding: '2px 6px', borderRadius: '20px'
+                }}>
+                  {['stick','pack'].includes(p.unit) ? 'Pack' : 'Case'} avail.
+                </span>
+              )}
+              <div style={{ fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>{p.name}</div>
+              {p.size && <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '2px' }}>{p.size}</div>}
               <div style={{ fontSize: '12px', color: '#888', marginBottom: '6px' }}>{p.sku}</div>
               <div style={{ fontSize: '15px', fontWeight: 600, color: '#e94560' }}>Rs. {p.sellingPrice}</div>
+              {p.casePrice && (
+                <div style={{ fontSize: '11px', color: '#888' }}>
+                  {['stick','pack'].includes(p.unit) ? 'Pack' : 'Case'}: Rs. {p.casePrice}
+                </div>
+              )}
               <div style={{ fontSize: '12px', color: p.stockQty <= p.lowStockThreshold ? '#e94560' : '#aaa', marginTop: '4px' }}>
                 Stock: {p.stockQty}
               </div>
@@ -147,21 +280,21 @@ export default function POS() {
         ) : (
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {cart.map(item => (
-              <div key={item.productId} style={{ borderBottom: '1px solid #eee', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
+              <div key={item.cartKey} style={{ borderBottom: '1px solid #eee', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 500 }}>{item.productName}</span>
-                  <button onClick={() => removeFromCart(item.productId)} style={{
+                  <span style={{ fontSize: '13px', fontWeight: 500, flex: 1, marginRight: '8px' }}>{item.productName}</span>
+                  <button onClick={() => removeFromCart(item.cartKey)} style={{
                     background: 'none', border: 'none', color: '#e94560', cursor: 'pointer', fontSize: '16px', lineHeight: 1
                   }}>×</button>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button onClick={() => updateQty(item.productId, item.quantity - 1)} style={{
+                    <button onClick={() => updateQty(item.cartKey, item.quantity - 1)} style={{
                       width: '24px', height: '24px', border: '1px solid #ddd', borderRadius: '4px',
                       background: '#fff', cursor: 'pointer', fontSize: '14px'
                     }}>−</button>
                     <span style={{ fontSize: '14px', minWidth: '20px', textAlign: 'center' }}>{item.quantity}</span>
-                    <button onClick={() => updateQty(item.productId, item.quantity + 1)} style={{
+                    <button onClick={() => updateQty(item.cartKey, item.quantity + 1)} style={{
                       width: '24px', height: '24px', border: '1px solid #ddd', borderRadius: '4px',
                       background: '#fff', cursor: 'pointer', fontSize: '14px'
                     }}>+</button>
@@ -188,7 +321,7 @@ export default function POS() {
             <span>Total</span><span>Rs. {total}</span>
           </div>
 
-          {/* Credit sale toggle */}
+          {/* Credit toggle */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: '0.75rem', padding: '0.6rem 0.75rem',
@@ -196,37 +329,23 @@ export default function POS() {
             border: `1px solid ${isCredit ? '#f5c0c8' : '#eee'}`,
             borderRadius: '6px'
           }}>
-            <span style={{ fontSize: '13px', fontWeight: 500, color: isCredit ? '#e94560' : '#555' }}>
-              Credit sale
-            </span>
-            <div
-              onClick={() => { setIsCredit(!isCredit); setCustomerId(''); }}
-              style={{
-                width: '36px', height: '20px', borderRadius: '20px', cursor: 'pointer',
-                background: isCredit ? '#e94560' : '#ddd',
-                position: 'relative', transition: 'background 0.2s'
-              }}
-            >
+            <span style={{ fontSize: '13px', fontWeight: 500, color: isCredit ? '#e94560' : '#555' }}>Credit sale</span>
+            <div onClick={() => { setIsCredit(!isCredit); setCustomerId(''); }} style={{
+              width: '36px', height: '20px', borderRadius: '20px', cursor: 'pointer',
+              background: isCredit ? '#e94560' : '#ddd', position: 'relative', transition: 'background 0.2s'
+            }}>
               <div style={{
                 width: '14px', height: '14px', borderRadius: '50%', background: '#fff',
-                position: 'absolute', top: '3px',
-                left: isCredit ? '19px' : '3px',
-                transition: 'left 0.2s'
+                position: 'absolute', top: '3px', left: isCredit ? '19px' : '3px', transition: 'left 0.2s'
               }} />
             </div>
           </div>
 
-          {/* Customer selector — only shown when credit is on */}
           {isCredit && (
-            <select
-              value={customerId}
-              onChange={e => setCustomerId(e.target.value)}
-              style={{
-                width: '100%', padding: '0.5rem', border: '1px solid #e94560',
-                borderRadius: '6px', fontSize: '14px', marginBottom: '0.75rem',
-                background: '#fff', color: '#333'
-              }}
-            >
+            <select value={customerId} onChange={e => setCustomerId(e.target.value)} style={{
+              width: '100%', padding: '0.5rem', border: '1px solid #e94560',
+              borderRadius: '6px', fontSize: '14px', marginBottom: '0.75rem', background: '#fff'
+            }}>
               <option value="">— Select customer —</option>
               {customers.map(c => (
                 <option key={c._id} value={c._id}>
@@ -236,7 +355,6 @@ export default function POS() {
             </select>
           )}
 
-          {/* Payment method — hidden when credit */}
           {!isCredit && (
             <select value={payment} onChange={e => setPayment(e.target.value)} style={{
               width: '100%', padding: '0.5rem', border: '1px solid #ddd',
@@ -249,11 +367,9 @@ export default function POS() {
           )}
 
           <button onClick={handleCompleteSale} disabled={loading || cart.length === 0} style={{
-            width: '100%',
-            background: isCredit ? '#b85c00' : '#e94560',
-            color: '#fff', border: 'none',
-            padding: '0.75rem', borderRadius: '6px', cursor: 'pointer',
-            fontSize: '15px', fontWeight: 500,
+            width: '100%', background: isCredit ? '#b85c00' : '#e94560',
+            color: '#fff', border: 'none', padding: '0.75rem', borderRadius: '6px',
+            cursor: 'pointer', fontSize: '15px', fontWeight: 500,
             opacity: cart.length === 0 ? 0.5 : 1
           }}>
             {loading ? 'Processing...' : isCredit ? 'Complete Credit Sale' : 'Complete Sale'}
