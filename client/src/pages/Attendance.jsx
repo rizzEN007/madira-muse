@@ -34,13 +34,11 @@ const toDisplayTime = (value) => {
   return `${String(displayH).padStart(2, '0')}:${m} ${period}`;
 };
 
-// PIN Gate component
 function PinGate({ onUnlock, onSetPin, pinExists }) {
-  const [input, setInput] = useState('');
-  const [newPin, setNewPin] = useState('');
+  const [input, setInput]         = useState('');
+  const [newPin, setNewPin]       = useState('');
   const [confirmPin, setConfirmPin] = useState('');
-  const [error, setError] = useState('');
-  const [settingPin, setSettingPin] = useState(false);
+  const [error, setError]         = useState('');
 
   const handleVerify = async () => {
     if (!input) return;
@@ -61,7 +59,7 @@ function PinGate({ onUnlock, onSetPin, pinExists }) {
     onUnlock();
   };
 
-  if (!pinExists || settingPin) {
+  if (!pinExists) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
         <div style={{ background: '#fff', borderRadius: '12px', padding: '2.5rem', width: '320px', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
@@ -125,34 +123,49 @@ export default function Attendance() {
   const [month, setMonth]           = useState(today.getMonth() + 1);
   const [year, setYear]             = useState(today.getFullYear());
   const [form, setForm]             = useState({ name: '', role: '', phone: '', monthlySalary: '' });
-
-  // PIN state
   const [pinExists, setPinExists]   = useState(false);
   const [unlocked, setUnlocked]     = useState(false);
   const [pinLoading, setPinLoading] = useState(true);
 
-  // Check if PIN exists on mount
+  // Check PIN exists
   useEffect(() => {
-    getSetting('owner_pin').then(res => {
-      setPinExists(!!res.data);
-      setPinLoading(false);
-    }).catch(() => setPinLoading(false));
+    let cancelled = false;
+    getSetting('owner_pin')
+      .then(res => { if (!cancelled) { setPinExists(!!res.data); setPinLoading(false); } })
+      .catch(() => { if (!cancelled) setPinLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
-  // Lock again when leaving protected tabs
+  // Fetch staff
   useEffect(() => {
-    if (tab === 'today' || tab === 'monthly') setUnlocked(false);
-  }, [tab]);
+    let cancelled = false;
+    getStaff().then(res => { if (!cancelled) setStaff(res.data); });
+    return () => { cancelled = true; };
+  }, []);
 
-  const fetchStaff      = async () => { const res = await getStaff(); setStaff(res.data); };
-  const fetchAttendance = async () => { const res = await getAttendance(month, year); setAttendance(res.data); };
-  const fetchSalary     = async () => { const res = await getSalaryReport(month, year); setSalaryReport(res.data); };
+  // Fetch attendance and salary when month/year changes
+  useEffect(() => {
+    let cancelled = false;
+    getAttendance(month, year).then(res => { if (!cancelled) setAttendance(res.data); });
+    getSalaryReport(month, year).then(res => { if (!cancelled) setSalaryReport(res.data); });
+    return () => { cancelled = true; };
+  }, [month, year]);
 
-  useEffect(() => { fetchStaff(); }, []);
-  useEffect(() => { fetchAttendance(); fetchSalary(); }, [month, year]);
+  const refreshStaff = () => {
+    getStaff().then(res => setStaff(res.data));
+  };
+
+  const refreshAttendance = () => {
+    getAttendance(month, year).then(res => setAttendance(res.data));
+  };
+
+  const refreshSalary = () => {
+    getSalaryReport(month, year).then(res => setSalaryReport(res.data));
+  };
 
   const getRecord = (staffId, date) =>
     attendance.find(a => a.staff?._id === staffId && a.date === date) || null;
+
   const getStatus = (staffId, date) => getRecord(staffId, date)?.status || null;
 
   const handleMark = async (staffId, status) => {
@@ -160,23 +173,37 @@ export default function Attendance() {
     const checkInTime = (status !== 'absent' && !existing?.checkInTime)
       ? toDisplayTime(new Date().toLocaleTimeString('en-NP', { hour: '2-digit', minute: '2-digit', hour12: false }))
       : existing?.checkInTime;
-    await markAttendance({ staffId, date: todayStr, status, checkInTime, checkOutTime: existing?.checkOutTime || '' });
-    fetchAttendance();
-    fetchSalary();
+    await markAttendance({
+      staffId, date: todayStr, status,
+      checkInTime: checkInTime || '',
+      checkOutTime: existing?.checkOutTime || '',
+    });
+    refreshAttendance();
+    refreshSalary();
   };
 
   const handleCheckInTime = async (staffId, checkInTime) => {
     const existing = getRecord(staffId, todayStr);
     if (!existing) return;
-    await markAttendance({ staffId, date: todayStr, status: existing.status, checkInTime, checkOutTime: existing.checkOutTime || '' });
-    fetchAttendance();
+    await markAttendance({
+      staffId, date: todayStr,
+      status: existing.status,
+      checkInTime,
+      checkOutTime: existing.checkOutTime || '',
+    });
+    refreshAttendance();
   };
 
   const handleCheckOutTime = async (staffId, checkOutTime) => {
     const existing = getRecord(staffId, todayStr);
     if (!existing) return;
-    await markAttendance({ staffId, date: todayStr, status: existing.status, checkInTime: existing.checkInTime || '', checkOutTime });
-    fetchAttendance();
+    await markAttendance({
+      staffId, date: todayStr,
+      status: existing.status,
+      checkInTime: existing.checkInTime || '',
+      checkOutTime,
+    });
+    refreshAttendance();
   };
 
   const calcHoursWorked = (checkIn, checkOut) => {
@@ -191,7 +218,7 @@ export default function Attendance() {
       if (p === 'AM' && h === 12) h = 0;
       return h * 60 + m;
     };
-    const inMin = toMinutes(checkIn);
+    const inMin  = toMinutes(checkIn);
     const outMin = toMinutes(checkOut);
     if (inMin === null || outMin === null || outMin <= inMin) return null;
     const diff = outMin - inMin;
@@ -203,13 +230,13 @@ export default function Attendance() {
     await addStaff(form);
     setShowForm(false);
     setForm({ name: '', role: '', phone: '', monthlySalary: '' });
-    fetchStaff();
+    refreshStaff();
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Permanently delete this staff member? This cannot be undone.')) return;
     await deleteStaff(id);
-    fetchStaff();
+    refreshStaff();
   };
 
   const tabStyle = (key) => ({
@@ -223,7 +250,8 @@ export default function Attendance() {
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       <span style={{ fontSize: '12px', color: '#888', minWidth: '90px' }}>{label}</span>
       <input
-        type="time" value={to24h(value)}
+        type="time"
+        value={to24h(value)}
         onChange={e => { if (!e.target.value) return; onChange(toDisplayTime(e.target.value)); }}
         style={{ padding: '4px 8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', color: '#333' }}
       />
@@ -231,22 +259,23 @@ export default function Attendance() {
     </div>
   );
 
-  // Protected tabs require PIN
   const isProtectedTab = tab === 'salary' || tab === 'staff';
+  const isUnlocked = unlocked && isProtectedTab;
 
   if (pinLoading) return <p style={{ padding: '2rem', color: '#aaa' }}>Loading...</p>;
 
   return (
     <div>
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 style={{ margin: 0, fontSize: '22px' }}>Attendance & Salary</h1>
-        {(!isProtectedTab) && (
+        {!isProtectedTab && (
           <button onClick={() => setShowForm(true)} style={{
             background: '#e94560', color: '#fff', border: 'none',
             padding: '0.6rem 1.2rem', borderRadius: '6px', cursor: 'pointer', fontSize: '14px'
           }}>+ Add Staff</button>
         )}
-        {isProtectedTab && unlocked && (
+        {isProtectedTab && isUnlocked && (
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={() => setShowForm(true)} style={{
               background: '#e94560', color: '#fff', border: 'none',
@@ -264,16 +293,12 @@ export default function Attendance() {
       <div style={{ display: 'flex', gap: '4px', background: '#f0f0f0', padding: '4px', borderRadius: '8px', marginBottom: '1.5rem', width: 'fit-content' }}>
         <button style={tabStyle('today')}   onClick={() => setTab('today')}>Today</button>
         <button style={tabStyle('monthly')} onClick={() => setTab('monthly')}>Monthly</button>
-        <button style={tabStyle('salary')}  onClick={() => setTab('salary')}>
-          🔒 Salary
-        </button>
-        <button style={tabStyle('staff')}   onClick={() => setTab('staff')}>
-          🔒 Staff list
-        </button>
+        <button style={tabStyle('salary')}  onClick={() => setTab('salary')}>🔒 Salary</button>
+        <button style={tabStyle('staff')}   onClick={() => setTab('staff')}>🔒 Staff list</button>
       </div>
 
-      {/* PIN gate for protected tabs */}
-      {isProtectedTab && !unlocked && (
+      {/* PIN gate */}
+      {isProtectedTab && !isUnlocked && (
         <PinGate
           pinExists={pinExists}
           onUnlock={() => setUnlocked(true)}
@@ -282,7 +307,7 @@ export default function Attendance() {
       )}
 
       {/* Month/Year picker */}
-      {(tab === 'monthly' || (tab === 'salary' && unlocked)) && (
+      {(tab === 'monthly' || (tab === 'salary' && isUnlocked)) && (
         <div style={{ display: 'flex', gap: '12px', marginBottom: '1.5rem', alignItems: 'center' }}>
           <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }}>
             {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
@@ -302,12 +327,12 @@ export default function Attendance() {
             {today.toLocaleDateString('en-NP', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </div>
           {staff.length === 0 ? (
-            <p style={{ color: '#aaa' }}>No staff added yet.</p>
+            <p style={{ color: '#aaa' }}>No staff added yet. Click + Add Staff to begin.</p>
           ) : (
             <div style={{ display: 'grid', gap: '12px' }}>
               {staff.map(s => {
-                const record = getRecord(s._id, todayStr);
-                const status = record?.status || null;
+                const record      = getRecord(s._id, todayStr);
+                const status      = record?.status || null;
                 const hoursWorked = calcHoursWorked(record?.checkInTime, record?.checkOutTime);
                 return (
                   <div key={s._id} style={{ background: '#fff', borderRadius: '10px', padding: '1rem 1.25rem', border: '1px solid #eee' }}>
@@ -327,15 +352,16 @@ export default function Attendance() {
                             padding: '5px 12px', fontSize: '12px', borderRadius: '6px', cursor: 'pointer',
                             border: `1px solid ${statusColors[st].color}`,
                             background: status === st ? statusColors[st].bg : '#fff',
-                            color: statusColors[st].color, fontWeight: status === st ? 600 : 400
+                            color: statusColors[st].color,
+                            fontWeight: status === st ? 600 : 400,
                           }}>{statusColors[st].label}</button>
                         ))}
                       </div>
                     </div>
                     {status && status !== 'absent' && (
                       <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #f0f0f0', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
-                        {timeInput('Check-in', record?.checkInTime, (val) => handleCheckInTime(s._id, val))}
-                        {timeInput('Check-out', record?.checkOutTime, (val) => handleCheckOutTime(s._id, val))}
+                        {timeInput('Check-in',  record?.checkInTime,  val => handleCheckInTime(s._id, val))}
+                        {timeInput('Check-out', record?.checkOutTime, val => handleCheckOutTime(s._id, val))}
                         {hoursWorked && (
                           <span style={{ fontSize: '12px', background: '#e6f4ea', color: '#2d6a4f', padding: '3px 10px', borderRadius: '20px', fontWeight: 500 }}>
                             {hoursWorked} worked
@@ -397,8 +423,8 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* SALARY TAB — PIN protected */}
-      {tab === 'salary' && unlocked && (
+      {/* SALARY TAB */}
+      {tab === 'salary' && isUnlocked && (
         <div style={{ background: '#fff', borderRadius: '10px', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead style={{ background: '#1a1a2e', color: '#fff' }}>
@@ -434,8 +460,8 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* STAFF LIST TAB — PIN protected */}
-      {tab === 'staff' && unlocked && (
+      {/* STAFF LIST TAB */}
+      {tab === 'staff' && isUnlocked && (
         <div style={{ background: '#fff', borderRadius: '10px', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead style={{ background: '#1a1a2e', color: '#fff' }}>
@@ -455,7 +481,7 @@ export default function Attendance() {
                   <td style={{ padding: '0.75rem 1rem', color: '#666' }}>{s.phone || '—'}</td>
                   <td style={{ padding: '0.75rem 1rem' }}>Rs. {s.monthlySalary}</td>
                   <td style={{ padding: '0.75rem 1rem', fontSize: '12px', color: '#aaa' }}>{new Date(s.joinDate).toLocaleDateString()}</td>
-                  <td style={{ padding: '0.75rem 1rem', display: 'flex', gap: '8px' }}>
+                  <td style={{ padding: '0.75rem 1rem' }}>
                     <button onClick={() => handleDelete(s._id)} style={{
                       padding: '4px 12px', fontSize: '12px', border: '1px solid #e94560',
                       borderRadius: '4px', cursor: 'pointer', background: '#fff', color: '#e94560'
@@ -478,21 +504,27 @@ export default function Attendance() {
             </div>
             <form onSubmit={handleAddStaff}>
               {[
-                { label: 'Full name *', name: 'name', type: 'text' },
-                { label: 'Role (e.g. Cashier)', name: 'role', type: 'text' },
-                { label: 'Phone', name: 'phone', type: 'text' },
+                { label: 'Full name *',            name: 'name',          type: 'text'   },
+                { label: 'Role (e.g. Cashier)',    name: 'role',          type: 'text'   },
+                { label: 'Phone',                  name: 'phone',         type: 'text'   },
                 { label: 'Monthly salary (Rs.) *', name: 'monthlySalary', type: 'number' },
               ].map(({ label, name, type }) => (
                 <div key={name} style={{ marginBottom: '1rem' }}>
                   <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', color: '#555' }}>{label}</label>
-                  <input type={type} value={form[name]} onChange={e => setForm({ ...form, [name]: e.target.value })}
+                  <input
+                    type={type} value={form[name]}
+                    onChange={e => setForm({ ...form, [name]: e.target.value })}
                     style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
                   />
                 </div>
               ))}
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-                <button type="submit" style={{ flex: 1, background: '#e94560', color: '#fff', border: 'none', padding: '0.7rem', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>Add staff</button>
-                <button type="button" onClick={() => setShowForm(false)} style={{ flex: 1, background: '#fff', border: '1px solid #ddd', padding: '0.7rem', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                <button type="submit" style={{ flex: 1, background: '#e94560', color: '#fff', border: 'none', padding: '0.7rem', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                  Add staff
+                </button>
+                <button type="button" onClick={() => setShowForm(false)} style={{ flex: 1, background: '#fff', border: '1px solid #ddd', padding: '0.7rem', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
