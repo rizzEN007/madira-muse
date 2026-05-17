@@ -102,9 +102,6 @@ function createWindow() {
     );
   }
 
-  // TEMP DEBUGGING
-  mainWindow.webContents.openDevTools();
-
   mainWindow.webContents.on(
     'did-fail-load',
     (e, code, desc) => {

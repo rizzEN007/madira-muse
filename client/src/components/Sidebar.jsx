@@ -1,13 +1,13 @@
 const links = [
-  { key: 'products',  label: 'Inventory' },
-  { key: 'stock',     label: 'Stock movements' },
-  { key: 'pos',       label: 'Point of Sale' },
-  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'dashboard',  label: 'Dashboard' },
+  { key: 'products',   label: 'Inventory' },
+  { key: 'stock',      label: 'Stock movements' },
+  { key: 'pos',        label: 'Point of Sale' },
   { key: 'categories', label: 'Categories' },
-  { key: 'expenses', label: 'Expenses' },
+  { key: 'expenses',   label: 'Expenses' },
   { key: 'customers',  label: 'Customers' },
   { key: 'suppliers',  label: 'Suppliers' },
-   { key: 'attendance', label: 'Attendance' },
+  { key: 'attendance', label: 'Attendance' },
 ];
 
 export default function Sidebar({ current, onNavigate }) {

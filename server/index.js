@@ -16,6 +16,9 @@ app.use('/api/stock',      require('./routes/stock'));
 app.use('/api/categories', require('./routes/categories'));
 app.use('/api/expenses',   require('./routes/expenses'));
 app.use('/api/staff',      require('./routes/staff'));
+app.use('/api/customers',  require('./routes/customers'));
+app.use('/api/suppliers',  require('./routes/suppliers'));
+app.use('/api/settings',   require('./routes/settings'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 

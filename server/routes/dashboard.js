@@ -98,7 +98,7 @@ const expenses = await Expense.find({
 const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 const profit = rangeRevenue - totalExpenses;
 
-    res.json({ rangeRevenue, totalSales, totalExpenses, lowStock, topProducts, last7Days: chartData });
+    res.json({ rangeRevenue, totalSales, totalExpenses, profit, lowStock, topProducts, last7Days: chartData });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -45,11 +45,11 @@ router.delete('/:id', async (req, res) => {
 
 // POST mark attendance
 router.post('/attendance', async (req, res) => {
-  const { staffId, date, status, note } = req.body;
+  const { staffId, date, status, checkInTime, checkOutTime, note } = req.body;
   try {
     const attendance = await Attendance.findOneAndUpdate(
       { staff: staffId, date },
-      { status, note },
+      { status, checkInTime: checkInTime || '', checkOutTime: checkOutTime || '', note: note || '' },
       { upsert: true, new: true }
     );
     res.json(attendance);
