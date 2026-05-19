@@ -102,19 +102,36 @@ const now = nowDate.toLocaleString('en-NP', {
             </div>
 
             {/* Totals */}
-            <div style={{ fontSize: '12px', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span>Subtotal</span><span>Rs. {subtotal}</span>
-              </div>
-              {discount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#e94560' }}>
-                  <span>Discount</span><span>- Rs. {discount}</span>
-                </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '14px', borderTop: '1px solid #ccc', paddingTop: '6px', marginTop: '4px' }}>
-                <span>Total</span><span>Rs. {total}</span>
-              </div>
-            </div>
+<div style={{ fontSize: '12px', marginBottom: '1rem' }}>
+  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+    <span>Subtotal</span><span>Rs. {subtotal}</span>
+  </div>
+  {discount > 0 && (
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#e94560' }}>
+      <span>Discount</span><span>- Rs. {discount}</span>
+    </div>
+  )}
+
+  {/* VAT breakdown — back-calculated from total (MRP already includes 13% VAT) */}
+  {(() => {
+    const taxableAmount = Math.round(total / 1.13);
+    const vatAmount     = total - taxableAmount;
+    return (
+      <>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', borderTop: '1px dashed #eee', paddingTop: '6px', marginTop: '4px' }}>
+          <span>Taxable amount</span><span>Rs. {taxableAmount}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <span>VAT (13%)</span><span>Rs. {vatAmount}</span>
+        </div>
+      </>
+    );
+  })()}
+
+  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '14px', borderTop: '1px solid #ccc', paddingTop: '6px', marginTop: '4px' }}>
+    <span>Total</span><span>Rs. {total}</span>
+  </div>
+</div>
 
             {/* Footer */}
             <div style={{ textAlign: 'center', fontSize: '11px', color: '#888', borderTop: '1px dashed #ccc', paddingTop: '0.75rem' }}>
