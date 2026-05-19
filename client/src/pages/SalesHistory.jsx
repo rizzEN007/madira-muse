@@ -11,7 +11,6 @@ const paymentColors = {
 
 export default function SalesHistory() {
   const [tab, setTab]             = useState('history');
-  const [dateMode, setDateMode]   = useState('AD');
   const [sales, setSales]         = useState([]);
   const [total, setTotal]         = useState(0);
   const [page, setPage]           = useState(1);
@@ -42,10 +41,10 @@ export default function SalesHistory() {
   }, [from, to, search, page]);
 
   useEffect(() => {
-    if (tab === 'history') fetchHistory();
+    if (tab === 'history') setTimeout(() => fetchHistory(), 0);
   }, [tab, fetchHistory]);
 
-  const fetchClosing = async () => {
+  const fetchClosing = useCallback(async () => {
     setClosingLoading(true);
     try {
       const res = await getClosingBalance(closingType, closingDate);
@@ -55,11 +54,11 @@ export default function SalesHistory() {
     } finally {
       setClosingLoading(false);
     }
-  };
+  }, [closingType, closingDate]);
 
   useEffect(() => {
-    if (tab === 'closing') fetchClosing();
-  }, [tab]);
+   if (tab === 'closing') setTimeout(() => fetchClosing(), 0);
+  }, [tab, fetchClosing]);
 
   const openDetail = async (sale) => {
     setSelectedSale(sale);
@@ -84,21 +83,8 @@ export default function SalesHistory() {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <div style={{ marginBottom: '1.5rem' }}>
         <h1 style={{ margin: 0, fontSize: '22px' }}>Sales History</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '13px', color: '#888' }}>Date format:</span>
-          <button onClick={() => setDateMode('AD')} style={{
-            padding: '4px 12px', borderRadius: '6px', border: '1px solid #ddd', cursor: 'pointer', fontSize: '13px',
-            background: dateMode === 'AD' ? '#1a1a2e' : '#fff',
-            color: dateMode === 'AD' ? '#fff' : '#333',
-          }}>AD</button>
-          <button onClick={() => setDateMode('BS')} style={{
-            padding: '4px 12px', borderRadius: '6px', border: '1px solid #ddd', cursor: 'pointer', fontSize: '13px',
-            background: dateMode === 'BS' ? '#1a1a2e' : '#fff',
-            color: dateMode === 'BS' ? '#fff' : '#333',
-          }}>BS</button>
-        </div>
       </div>
 
       {/* Tabs */}
@@ -116,21 +102,21 @@ export default function SalesHistory() {
               <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '4px' }}>Search invoice</label>
               <input
                 type="text" placeholder="e.g. MM-2026-0001"
-                value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+                value={search} onChange={e => setSearch(e.target.value)}
                 style={{ padding: '0.5rem 0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', width: '200px' }}
               />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '4px' }}>From (AD)</label>
               <input
-                type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1); }}
+                type="date" value={from} onChange={e => setFrom(e.target.value)}
                 style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }}
               />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '4px' }}>To (AD)</label>
               <input
-                type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1); }}
+                type="date" value={to} onChange={e => setTo(e.target.value)}
                 style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }}
               />
             </div>
@@ -168,13 +154,8 @@ export default function SalesHistory() {
                     onClick={() => openDetail(s)}>
                     <td style={{ padding: '0.75rem 1rem', fontSize: '13px', fontWeight: 500 }}>{s.invoiceNo}</td>
                     <td style={{ padding: '0.75rem 1rem', fontSize: '12px', color: '#555' }}>
-                      {formatDateTime(s.createdAt, dateMode)}
-                      {dateMode === 'AD' && s.bsDate && (
-                        <div style={{ fontSize: '11px', color: '#aaa' }}>{s.bsDate.display || s.bsDate.formatted + ' BS'}</div>
-                      )}
-                      {dateMode === 'BS' && (
-                        <div style={{ fontSize: '11px', color: '#aaa' }}>{new Date(s.createdAt).toLocaleDateString('en-NP')}</div>
-                      )}
+                      {formatDateTime(s.createdAt, 'AD')}
+                      <div style={{ fontSize: '11px', color: '#aaa' }}>{formatDate(s.createdAt, 'BS')}</div>
                     </td>
                     <td style={{ padding: '0.75rem 1rem', fontSize: '13px' }}>—</td>
                     <td style={{ padding: '0.75rem 1rem', fontSize: '13px' }}>Rs. {s.subtotal}</td>
@@ -226,7 +207,6 @@ export default function SalesHistory() {
       {/* CLOSING BALANCE TAB */}
       {tab === 'closing' && (
         <div>
-          {/* Controls */}
           <div style={{ display: 'flex', gap: '12px', marginBottom: '1.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '4px' }}>Period</label>
@@ -257,15 +237,11 @@ export default function SalesHistory() {
 
           {closing && !closingLoading && (
             <div>
-              {/* Period header */}
               <div style={{ background: '#1a1a2e', color: '#fff', borderRadius: '10px', padding: '1rem 1.5rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontSize: '16px', fontWeight: 600, textTransform: 'capitalize' }}>{closing.type} Closing Report</div>
                   <div style={{ fontSize: '12px', color: '#aaa', marginTop: '4px' }}>
-                    {dateMode === 'BS'
-                      ? `${closing.bsFrom?.display || ''} — ${closing.bsTo?.display || ''}`
-                      : `${new Date(closing.from).toLocaleDateString('en-NP')} — ${new Date(closing.to).toLocaleDateString('en-NP')}`
-                    }
+                    {new Date(closing.from).toLocaleDateString('en-NP')} — {new Date(closing.to).toLocaleDateString('en-NP')}
                   </div>
                 </div>
                 <div style={{ fontSize: '22px', fontWeight: 700, color: '#e94560' }}>
@@ -273,7 +249,6 @@ export default function SalesHistory() {
                 </div>
               </div>
 
-              {/* Stat cards */}
               <div style={{ display: 'flex', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' }}>
                 {statCard('Total Sales', closing.totalSales)}
                 {statCard('Revenue', `Rs. ${closing.totalRevenue.toLocaleString()}`, '#2d6a4f')}
@@ -282,14 +257,13 @@ export default function SalesHistory() {
                 {statCard('Net Profit', `Rs. ${closing.profit.toLocaleString()}`, closing.profit >= 0 ? '#2d6a4f' : '#c0392b')}
               </div>
 
-              {/* Payment breakdown */}
               <div style={{ background: '#fff', borderRadius: '10px', padding: '1.25rem', marginBottom: '1rem' }}>
                 <div style={{ fontSize: '14px', fontWeight: 500, marginBottom: '1rem' }}>Payment breakdown</div>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   {[
-                    { label: 'Cash', value: closing.cashSales, ...paymentColors.cash },
-                    { label: 'Card', value: closing.cardSales, ...paymentColors.card },
-                    { label: 'eSewa', value: closing.esewaS, ...paymentColors.esewa },
+                    { label: 'Cash',   value: closing.cashSales,   ...paymentColors.cash   },
+                    { label: 'Card',   value: closing.cardSales,   ...paymentColors.card   },
+                    { label: 'eSewa',  value: closing.esewaS,      ...paymentColors.esewa  },
                     { label: 'Credit', value: closing.creditSales, ...paymentColors.credit },
                   ].map(p => (
                     <div key={p.label} style={{ background: p.bg, borderRadius: '8px', padding: '0.75rem 1.25rem', flex: 1, minWidth: '120px' }}>
@@ -300,7 +274,6 @@ export default function SalesHistory() {
                 </div>
               </div>
 
-              {/* Top items */}
               {closing.topItems.length > 0 && (
                 <div style={{ background: '#fff', borderRadius: '10px', padding: '1.25rem' }}>
                   <div style={{ fontSize: '14px', fontWeight: 500, marginBottom: '1rem' }}>Top selling items</div>

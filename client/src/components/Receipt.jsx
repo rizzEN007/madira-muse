@@ -1,19 +1,22 @@
 import { useEffect } from 'react';
+import { adToBS, BS_MONTHS } from '../utils/dateUtils';
 
 export default function Receipt({ invoice, items, total, discount, subtotal, paymentMethod, onClose }) {
   useEffect(() => {
     const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, []);
+  }, [onClose]);
 
   const handlePrint = () => window.print();
 
-  const now = new Date().toLocaleString('en-NP', {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  });
-
+ const nowDate = new Date();
+const bs = adToBS(nowDate);
+const bsDate = `${bs.year} ${BS_MONTHS[bs.month - 1]} ${bs.day}`;
+const now = nowDate.toLocaleString('en-NP', {
+  year: 'numeric', month: 'short', day: 'numeric',
+  hour: '2-digit', minute: '2-digit'
+});
   return (
     <>
       <style>{`
@@ -56,7 +59,7 @@ export default function Receipt({ invoice, items, total, discount, subtotal, pay
             <div style={{ textAlign: 'center', marginBottom: '1rem', borderBottom: '1px dashed #ccc', paddingBottom: '1rem' }}>
               <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px' }}>MADIRA MUSE</div>
               <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Liquor Shop</div>
-              <div style={{ fontSize: '11px', color: '#666' }}>Pokhara, Nepal</div>
+              <div style={{ fontSize: '11px', color: '#666' }}>Bhaktapur, Nepal</div>
             </div>
 
             {/* Invoice info */}
@@ -66,9 +69,13 @@ export default function Receipt({ invoice, items, total, discount, subtotal, pay
                 <span style={{ fontWeight: 600 }}>{invoice}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Date:</span>
-                <span>{now}</span>
-              </div>
+  <span>Date:</span>
+  <span>{now}</span>
+</div>
+<div style={{ display: 'flex', justifyContent: 'space-between' }}>
+  <span>BS Date:</span>
+  <span>{bsDate}</span>
+</div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Payment:</span>
                 <span style={{ textTransform: 'capitalize' }}>{paymentMethod}</span>
