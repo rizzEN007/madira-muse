@@ -19,6 +19,7 @@ app.use('/api/staff',      require('./routes/staff'));
 app.use('/api/customers',  require('./routes/customers'));
 app.use('/api/suppliers',  require('./routes/suppliers'));
 app.use('/api/settings',   require('./routes/settings'));
+app.use('/api/sales-history', require('./routes/salesHistory'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 

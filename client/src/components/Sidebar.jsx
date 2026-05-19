@@ -1,6 +1,8 @@
 const links = [
   { key: 'dashboard',  label: 'Dashboard' },
+  { key: 'sales-history', label: 'Sales History' },
   { key: 'products',   label: 'Inventory' },
+
   { key: 'stock',      label: 'Stock movements' },
   { key: 'pos',        label: 'Point of Sale' },
   { key: 'categories', label: 'Categories' },
@@ -8,6 +10,7 @@ const links = [
   { key: 'customers',  label: 'Customers' },
   { key: 'suppliers',  label: 'Suppliers' },
   { key: 'attendance', label: 'Attendance' },
+  
 ];
 
 export default function Sidebar({ current, onNavigate }) {

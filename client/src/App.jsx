@@ -9,6 +9,8 @@ import Expenses from './pages/Expenses';
 import Customers from './pages/Customers';
 import Suppliers from './pages/Suppliers';
 import Attendance from './pages/Attendance';
+import SalesHistory from './pages/SalesHistory';
+
 import './App.css';
 
 export default function App() {
@@ -27,6 +29,8 @@ export default function App() {
         {page === 'customers'  && <Customers />}
         {page === 'suppliers'  && <Suppliers />} 
         {page === 'attendance' && <Attendance />}
+        {page === 'sales-history' && <SalesHistory />}
+
       </main>
     </div>
   );
