@@ -23,11 +23,16 @@ router.post('/', async (req, res) => {
     const invoiceNo = `MM-${month}-${year}-${String(count + 1).padStart(4, '0')}`;
 
     // Create sale — if credit sale, payment method is 'credit'
+    const taxableAmount = Math.round((total * 100) / 113 * 100) / 100;
+const vatAmount     = Math.round((total * 13)  / 113 * 100) / 100;
+    
     const sale = await Sale.create({
       invoiceNo,
       subtotal,
       discount: discount || 0,
       total,
+      taxableAmount,
+  vatAmount,
       paymentMethod: isCredit ? 'credit' : paymentMethod,
       customer: customerId || null,
       isCredit: isCredit || false,

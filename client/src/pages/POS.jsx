@@ -9,6 +9,7 @@ function VariantPicker({ product, onSelect, onClose }) {
   const unitLabel     = product.unit || 'unit';
   const caseLabel     = ['stick', 'pack'].includes(product.unit) ? 'Pack' : 'Case';
   const singleLabel   = product.unit.charAt(0).toUpperCase() + product.unit.slice(1);
+ 
 
   return (
     <div style={{
@@ -83,6 +84,8 @@ export default function POS() {
   const [loading, setLoading]         = useState(false);
   const [receipt, setReceipt]         = useState(null);
   const [variantFor, setVariantFor]   = useState(null); // product awaiting variant pick
+  // DELETE this line inside VariantPicker:
+const [showEstimate, setShowEstimate] = useState(false);
 
   useEffect(() => {
     getProducts().then(res => setProducts(res.data));
@@ -366,6 +369,19 @@ export default function POS() {
             </select>
           )}
 
+          <button
+              onClick={() => setShowEstimate(true)}
+              disabled={cart.length === 0}
+              style={{
+                width: '100%', background: '#fff', color: '#1a1a2e',
+                border: '1px solid #1a1a2e', padding: '0.65rem',
+                borderRadius: '6px', cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                fontSize: '14px', fontWeight: 500, marginBottom: '8px',
+                opacity: cart.length === 0 ? 0.5 : 1
+              }}>
+              📋 Print Estimate
+            </button>
+
           <button onClick={handleCompleteSale} disabled={loading || cart.length === 0} style={{
             width: '100%', background: isCredit ? '#b85c00' : '#e94560',
             color: '#fff', border: 'none', padding: '0.75rem', borderRadius: '6px',
@@ -377,17 +393,31 @@ export default function POS() {
         </div>
       </div>
 
-      {receipt && (
-        <Receipt
-          invoice={receipt.invoice}
-          items={receipt.items}
-          subtotal={receipt.subtotal}
-          discount={receipt.discount}
-          total={receipt.total}
-          paymentMethod={receipt.paymentMethod}
-          onClose={() => setReceipt(null)}
-        />
-      )}
+      {showEstimate && (
+  <Receipt
+    mode="estimate"
+    invoice={null}
+    items={cart}
+    subtotal={subtotal}
+    discount={Number(discount)}
+    total={total}
+    paymentMethod={payment}
+    onClose={() => setShowEstimate(false)}
+  />
+)}
+
+{receipt && (
+  <Receipt
+    mode="vat"
+    invoice={receipt.invoice}
+    items={receipt.items}
+    subtotal={receipt.subtotal}
+    discount={receipt.discount}
+    total={receipt.total}
+    paymentMethod={receipt.paymentMethod}
+    onClose={() => setReceipt(null)}
+  />
+)}
     </div>
   );
 }
